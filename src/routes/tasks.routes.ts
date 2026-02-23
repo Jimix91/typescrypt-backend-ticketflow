@@ -6,23 +6,28 @@ const tasksRouter = Router();
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
-  description: z.string().optional(),
-  completed: z.boolean().optional(),
-  dueDate: z.string().datetime().optional(),
-  userId: z.string().uuid(),
+  description: z.string().min(1),
+  status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  createdById: z.coerce.number().int().positive(),
+  assignedToId: z.coerce.number().int().positive().nullable().optional(),
 });
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
-  completed: z.boolean().optional(),
-  dueDate: z.string().datetime().nullable().optional(),
+  status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
+  assignedToId: z.coerce.number().int().positive().nullable().optional(),
 });
 
 tasksRouter.get("/", async (_req, res, next) => {
   try {
-    const tasks = await prisma.task.findMany({
-      include: { user: true },
+    const tasks = await prisma.ticket.findMany({
+      include: {
+        createdBy: true,
+        assignedTo: true,
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json(tasks);
@@ -33,11 +38,20 @@ tasksRouter.get("/", async (_req, res, next) => {
 
 tasksRouter.get("/:taskId", async (req, res, next) => {
   try {
-    const { taskId } = req.params;
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const taskId = Number(req.params.taskId);
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      return res.status(400).json({ message: "Invalid ticket id" });
+    }
+    const task = await prisma.ticket.findUnique({
+      where: { id: taskId },
+      include: {
+        createdBy: true,
+        assignedTo: true,
+      },
+    });
 
     if (!task) {
-      return res.status(404).json({ message: "Task not found" });
+      return res.status(404).json({ message: "Ticket not found" });
     }
 
     return res.json(task);
@@ -50,13 +64,14 @@ tasksRouter.post("/", async (req, res, next) => {
   try {
     const payload = createTaskSchema.parse(req.body);
 
-    const task = await prisma.task.create({
+    const task = await prisma.ticket.create({
       data: {
         title: payload.title,
         description: payload.description,
-        completed: payload.completed ?? false,
-        dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
-        userId: payload.userId,
+        status: payload.status,
+        priority: payload.priority,
+        createdById: payload.createdById,
+        assignedToId: payload.assignedToId,
       },
     });
 
@@ -68,26 +83,25 @@ tasksRouter.post("/", async (req, res, next) => {
 
 tasksRouter.put("/:taskId", async (req, res, next) => {
   try {
-    const { taskId } = req.params;
+    const taskId = Number(req.params.taskId);
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      return res.status(400).json({ message: "Invalid ticket id" });
+    }
     const payload = updateTaskSchema.parse(req.body);
 
-    const existingTask = await prisma.task.findUnique({ where: { id: taskId } });
+    const existingTask = await prisma.ticket.findUnique({ where: { id: taskId } });
     if (!existingTask) {
-      return res.status(404).json({ message: "Task not found" });
+      return res.status(404).json({ message: "Ticket not found" });
     }
 
-    const updatedTask = await prisma.task.update({
+    const updatedTask = await prisma.ticket.update({
       where: { id: taskId },
       data: {
         title: payload.title,
         description: payload.description,
-        completed: payload.completed,
-        dueDate:
-          payload.dueDate === undefined
-            ? undefined
-            : payload.dueDate === null
-              ? null
-              : new Date(payload.dueDate),
+        status: payload.status,
+        priority: payload.priority,
+        assignedToId: payload.assignedToId,
       },
     });
 
@@ -99,14 +113,17 @@ tasksRouter.put("/:taskId", async (req, res, next) => {
 
 tasksRouter.delete("/:taskId", async (req, res, next) => {
   try {
-    const { taskId } = req.params;
-
-    const existingTask = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!existingTask) {
-      return res.status(404).json({ message: "Task not found" });
+    const taskId = Number(req.params.taskId);
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      return res.status(400).json({ message: "Invalid ticket id" });
     }
 
-    await prisma.task.delete({ where: { id: taskId } });
+    const existingTask = await prisma.ticket.findUnique({ where: { id: taskId } });
+    if (!existingTask) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    await prisma.ticket.delete({ where: { id: taskId } });
     return res.status(204).send();
   } catch (error) {
     return next(error);

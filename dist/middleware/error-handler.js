@@ -1,9 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.errorHandler = void 0;
-const zod_1 = require("zod");
+const hasZodIssues = (value) => {
+    return (typeof value === "object" &&
+        value !== null &&
+        "issues" in value &&
+        Array.isArray(value.issues));
+};
 const errorHandler = (error, _req, res, _next) => {
-    if (error instanceof zod_1.ZodError) {
+    if (hasZodIssues(error)) {
         res.status(400).json({ message: "Validation error", errors: error.issues });
         return;
     }

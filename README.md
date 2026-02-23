@@ -1,24 +1,24 @@
-# TypeScript Backend API
+# TicketFlow – Internal IT Support Management System (Backend API)
 
-Express + TypeScript + Prisma + PostgreSQL backend.
+Internal Helpdesk backend built with Express + TypeScript + Prisma + PostgreSQL.
 
 ## Requirements coverage
 
 - REST API with Express + TypeScript
 - PostgreSQL via Prisma ORM
-- 2 models: `User` and `Task`
-- Full CRUD for `Task`
+- Models: `User`, `Ticket`, `Comment`
+- Full CRUD for `Ticket`
 
 ## Endpoints
 
 - `GET /api/health`
 - `GET /api/users`
 - `POST /api/users`
-- `GET /api/tasks`
-- `GET /api/tasks/:taskId`
-- `POST /api/tasks`
-- `PUT /api/tasks/:taskId`
-- `DELETE /api/tasks/:taskId`
+- `GET /api/tickets`
+- `GET /api/tickets/:ticketId`
+- `POST /api/tickets`
+- `PUT /api/tickets/:ticketId`
+- `DELETE /api/tickets/:ticketId`
 
 ## Setup
 

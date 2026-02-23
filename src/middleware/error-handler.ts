@@ -1,5 +1,13 @@
 import { NextFunction, Request, Response } from "express";
-import { ZodError } from "zod";
+
+const hasZodIssues = (value: unknown): value is { issues: unknown[] } => {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "issues" in value &&
+    Array.isArray((value as { issues: unknown[] }).issues)
+  );
+};
 
 export const errorHandler = (
   error: unknown,
@@ -7,7 +15,7 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): void => {
-  if (error instanceof ZodError) {
+  if (hasZodIssues(error)) {
     res.status(400).json({ message: "Validation error", errors: error.issues });
     return;
   }

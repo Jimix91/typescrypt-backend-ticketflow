@@ -7,12 +7,16 @@ const usersRouter = Router();
 const createUserSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
+  role: z.enum(["ADMIN", "AGENT", "EMPLOYEE"]).optional(),
 });
 
 usersRouter.get("/", async (_req, res, next) => {
   try {
     const users = await prisma.user.findMany({
-      include: { tasks: true },
+      include: {
+        tickets: true,
+        assigned: true,
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json(users);

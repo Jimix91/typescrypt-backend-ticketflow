@@ -7,24 +7,60 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tasks     Task[]
+enum Role {
+  ADMIN
+  AGENT
+  EMPLOYEE
 }
 
-model Task {
-  id          String   @id @default(uuid())
+enum Status {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  role      Role     @default(EMPLOYEE)
+  tickets   Ticket[] @relation("CreatedTickets")
+  assigned  Ticket[] @relation("AssignedTickets")
+  comments  Comment[]
+  createdAt DateTime @default(now())
+}
+
+model Ticket {
+  id          Int      @id @default(autoincrement())
   title       String
-  description String?
-  completed   Boolean  @default(false)
-  dueDate     DateTime?
+  description String
+  status      Status   @default(OPEN)
+  priority    Priority @default(MEDIUM)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdById Int
+  createdBy   User     @relation("CreatedTickets", fields: [createdById], references: [id])
+
+  assignedToId Int?
+  assignedTo   User?   @relation("AssignedTickets", fields: [assignedToId], references: [id])
+
+  comments Comment[]
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  ticketId  Int
+  authorId  Int
+  createdAt DateTime @default(now())
+
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
 }

@@ -22,6 +22,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/users", usersRouter);
 app.use("/api/tasks", tasksRouter);
+app.use("/api/tickets", tasksRouter);
 
 app.use(errorHandler);
 

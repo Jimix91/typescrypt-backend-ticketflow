@@ -20,5 +20,6 @@ app.get("/api/health", (_req, res) => {
 });
 app.use("/api/users", users_routes_1.default);
 app.use("/api/tasks", tasks_routes_1.default);
+app.use("/api/tickets", tasks_routes_1.default);
 app.use(error_handler_1.errorHandler);
 exports.default = app;

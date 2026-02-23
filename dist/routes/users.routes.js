@@ -7,11 +7,15 @@ const usersRouter = (0, express_1.Router)();
 const createUserSchema = zod_1.z.object({
     name: zod_1.z.string().min(2),
     email: zod_1.z.string().email(),
+    role: zod_1.z.enum(["ADMIN", "AGENT", "EMPLOYEE"]).optional(),
 });
 usersRouter.get("/", async (_req, res, next) => {
     try {
         const users = await prisma_1.prisma.user.findMany({
-            include: { tasks: true },
+            include: {
+                tickets: true,
+                assigned: true,
+            },
             orderBy: { createdAt: "desc" },
         });
         res.json(users);
