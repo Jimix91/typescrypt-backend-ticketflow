@@ -5,6 +5,34 @@ import { requireAuth } from "../middleware/auth.middleware";
 
 const tasksRouter = Router();
 
+const ticketWithUsersSelect = {
+  id: true,
+  title: true,
+  description: true,
+  status: true,
+  priority: true,
+  createdAt: true,
+  updatedAt: true,
+  createdById: true,
+  assignedToId: true,
+  createdBy: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  },
+  assignedTo: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  },
+} as const;
+
 const createTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
@@ -44,10 +72,7 @@ tasksRouter.get("/", async (req, res, next) => {
                 { assignedToId: authUser.id },
               ],
             },
-      include: {
-        createdBy: true,
-        assignedTo: true,
-      },
+      select: ticketWithUsersSelect,
       orderBy: { createdAt: "desc" },
     });
     res.json(tasks);
@@ -69,10 +94,7 @@ tasksRouter.get("/:id", async (req, res, next) => {
     }
     const task = await prisma.ticket.findUnique({
       where: { id: ticketId },
-      include: {
-        createdBy: true,
-        assignedTo: true,
-      },
+      select: ticketWithUsersSelect,
     });
 
     if (!task) {
@@ -112,6 +134,7 @@ tasksRouter.post("/", async (req, res, next) => {
         createdById: authUser.id,
         assignedToId: payload.assignedToId,
       },
+      select: ticketWithUsersSelect,
     });
 
     res.status(201).json(task);
@@ -156,6 +179,7 @@ tasksRouter.put("/:id", async (req, res, next) => {
         priority: payload.priority,
         assignedToId: payload.assignedToId,
       },
+      select: ticketWithUsersSelect,
     });
 
     return res.json(updatedTask);
