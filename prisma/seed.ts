@@ -39,6 +39,28 @@ async function main() {
     },
   });
 
+  const employee1 = await prisma.user.upsert({
+    where: { email: "employee1@ticketflow.dev" },
+    update: { name: "Employee 1", role: Role.EMPLOYEE, passwordHash },
+    create: {
+      name: "Employee 1",
+      email: "employee1@ticketflow.dev",
+      role: Role.EMPLOYEE,
+      passwordHash,
+    },
+  });
+
+  const employee2 = await prisma.user.upsert({
+    where: { email: "employee2@ticketflow.dev" },
+    update: { name: "Employee 2", role: Role.EMPLOYEE, passwordHash },
+    create: {
+      name: "Employee 2",
+      email: "employee2@ticketflow.dev",
+      role: Role.EMPLOYEE,
+      passwordHash,
+    },
+  });
+
   await prisma.comment.deleteMany({
     where: {
       ticket: {
@@ -59,7 +81,7 @@ async function main() {
       description: "Users report login button does not submit on Safari 17.",
       status: Status.OPEN,
       priority: Priority.HIGH,
-      createdById: employee.id,
+      createdById: employee1.id,
       assignedToId: agent.id,
     },
     {
@@ -67,7 +89,7 @@ async function main() {
       description: "Spanish labels are missing on account settings page.",
       status: Status.IN_PROGRESS,
       priority: Priority.MEDIUM,
-      createdById: employee.id,
+      createdById: employee2.id,
       assignedToId: agent.id,
     },
     {
@@ -99,7 +121,7 @@ async function main() {
       description: "Status badge overlaps title on small screens.",
       status: Status.OPEN,
       priority: Priority.MEDIUM,
-      createdById: employee.id,
+      createdById: employee1.id,
       assignedToId: agent.id,
     },
   ];
@@ -136,7 +158,12 @@ async function main() {
       {
         content: "CSV columns confirmed with operations team.",
         ticketId: createdTickets[4].id,
-        authorId: employee.id,
+        authorId: employee2.id,
+      },
+      {
+        content: "I can add more details if needed. I opened this ticket.",
+        ticketId: createdTickets[0].id,
+        authorId: employee1.id,
       },
     ],
   });
@@ -146,6 +173,8 @@ async function main() {
   console.log("- admin@ticketflow.dev / 123456");
   console.log("- agent@ticketflow.dev / 123456");
   console.log("- employee@ticketflow.dev / 123456");
+  console.log("- employee1@ticketflow.dev / 123456");
+  console.log("- employee2@ticketflow.dev / 123456");
   console.log("Created tickets:", createdTickets.length);
 }
 
