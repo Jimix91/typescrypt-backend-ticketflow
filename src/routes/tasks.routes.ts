@@ -9,6 +9,7 @@ const ticketWithUsersSelect = {
   id: true,
   title: true,
   description: true,
+  imageUrl: true,
   status: true,
   priority: true,
   createdAt: true,
@@ -33,9 +34,17 @@ const ticketWithUsersSelect = {
   },
 } as const;
 
+const imageDataUrlSchema = z
+  .string()
+  .max(8_000_000)
+  .refine((value: string) => value.startsWith("data:image/"), {
+    message: "imageUrl must be a valid image data URL",
+  });
+
 const createTaskSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
+  imageUrl: imageDataUrlSchema.nullable().optional(),
   status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
   assignedToId: z.coerce.number().int().positive().nullable().optional(),
@@ -44,6 +53,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
+  imageUrl: imageDataUrlSchema.nullable().optional(),
   status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
   assignedToId: z.coerce.number().int().positive().nullable().optional(),
@@ -51,6 +61,7 @@ const updateTaskSchema = z.object({
 
 const createCommentSchema = z.object({
   content: z.string().min(1),
+  imageUrl: imageDataUrlSchema.nullable().optional(),
 });
 
 tasksRouter.use(requireAuth);
@@ -129,6 +140,7 @@ tasksRouter.post("/", async (req, res, next) => {
       data: {
         title: payload.title,
         description: payload.description,
+        imageUrl: payload.imageUrl,
         status: payload.status,
         priority: payload.priority,
         createdById: authUser.id,
@@ -175,6 +187,7 @@ tasksRouter.put("/:id", async (req, res, next) => {
       data: {
         title: payload.title,
         description: payload.description,
+        imageUrl: payload.imageUrl,
         status: payload.status,
         priority: payload.priority,
         assignedToId: payload.assignedToId,
@@ -248,6 +261,7 @@ tasksRouter.post("/:id/comments", async (req, res, next) => {
     const comment = await prisma.comment.create({
       data: {
         content: payload.content,
+        imageUrl: payload.imageUrl,
         ticketId,
         authorId: authUser.id,
       },

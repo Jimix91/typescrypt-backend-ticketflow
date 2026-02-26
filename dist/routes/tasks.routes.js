@@ -5,9 +5,44 @@ const zod_1 = require("zod");
 const prisma_1 = require("../lib/prisma");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const tasksRouter = (0, express_1.Router)();
+const ticketWithUsersSelect = {
+    id: true,
+    title: true,
+    description: true,
+    imageUrl: true,
+    status: true,
+    priority: true,
+    createdAt: true,
+    updatedAt: true,
+    createdById: true,
+    assignedToId: true,
+    createdBy: {
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+        },
+    },
+    assignedTo: {
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+        },
+    },
+};
+const imageDataUrlSchema = zod_1.z
+    .string()
+    .max(8000000)
+    .refine((value) => value.startsWith("data:image/"), {
+    message: "imageUrl must be a valid image data URL",
+});
 const createTaskSchema = zod_1.z.object({
     title: zod_1.z.string().min(1),
     description: zod_1.z.string().min(1),
+    imageUrl: imageDataUrlSchema.nullable().optional(),
     status: zod_1.z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
     priority: zod_1.z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
     assignedToId: zod_1.z.coerce.number().int().positive().nullable().optional(),
@@ -15,12 +50,14 @@ const createTaskSchema = zod_1.z.object({
 const updateTaskSchema = zod_1.z.object({
     title: zod_1.z.string().min(1).optional(),
     description: zod_1.z.string().nullable().optional(),
+    imageUrl: imageDataUrlSchema.nullable().optional(),
     status: zod_1.z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
     priority: zod_1.z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
     assignedToId: zod_1.z.coerce.number().int().positive().nullable().optional(),
 });
 const createCommentSchema = zod_1.z.object({
     content: zod_1.z.string().min(1),
+    imageUrl: imageDataUrlSchema.nullable().optional(),
 });
 tasksRouter.use(auth_middleware_1.requireAuth);
 tasksRouter.get("/", async (req, res, next) => {
@@ -38,10 +75,7 @@ tasksRouter.get("/", async (req, res, next) => {
                         { assignedToId: authUser.id },
                     ],
                 },
-            include: {
-                createdBy: true,
-                assignedTo: true,
-            },
+            select: ticketWithUsersSelect,
             orderBy: { createdAt: "desc" },
         });
         res.json(tasks);
@@ -62,10 +96,7 @@ tasksRouter.get("/:id", async (req, res, next) => {
         }
         const task = await prisma_1.prisma.ticket.findUnique({
             where: { id: ticketId },
-            include: {
-                createdBy: true,
-                assignedTo: true,
-            },
+            select: ticketWithUsersSelect,
         });
         if (!task) {
             return res.status(404).json({ message: "Ticket not found" });
@@ -93,11 +124,13 @@ tasksRouter.post("/", async (req, res, next) => {
             data: {
                 title: payload.title,
                 description: payload.description,
+                imageUrl: payload.imageUrl,
                 status: payload.status,
                 priority: payload.priority,
                 createdById: authUser.id,
                 assignedToId: payload.assignedToId,
             },
+            select: ticketWithUsersSelect,
         });
         res.status(201).json(task);
     }
@@ -131,10 +164,12 @@ tasksRouter.put("/:id", async (req, res, next) => {
             data: {
                 title: payload.title,
                 description: payload.description,
+                imageUrl: payload.imageUrl,
                 status: payload.status,
                 priority: payload.priority,
                 assignedToId: payload.assignedToId,
             },
+            select: ticketWithUsersSelect,
         });
         return res.json(updatedTask);
     }
@@ -191,6 +226,7 @@ tasksRouter.post("/:id/comments", async (req, res, next) => {
         const comment = await prisma_1.prisma.comment.create({
             data: {
                 content: payload.content,
+                imageUrl: payload.imageUrl,
                 ticketId,
                 authorId: authUser.id,
             },

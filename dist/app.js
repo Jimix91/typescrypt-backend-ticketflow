@@ -15,7 +15,7 @@ const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
     origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
 }));
-app.use(express_1.default.json());
+app.use(express_1.default.json({ limit: "10mb" }));
 app.get("/api/health", (_req, res) => {
     res.json({ ok: true });
 });

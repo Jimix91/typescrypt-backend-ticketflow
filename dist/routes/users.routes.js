@@ -25,8 +25,6 @@ usersRouter.get("/", async (_req, res, next) => {
                 email: true,
                 role: true,
                 createdAt: true,
-                tickets: true,
-                assigned: true,
             },
             orderBy: { createdAt: "desc" },
         });
