@@ -28,6 +28,28 @@ async function main() {
     },
   });
 
+  const agent1 = await prisma.user.upsert({
+    where: { email: "agent1@ticketflow.dev" },
+    update: { name: "Agent 1", role: Role.AGENT, passwordHash },
+    create: {
+      name: "Agent 1",
+      email: "agent1@ticketflow.dev",
+      role: Role.AGENT,
+      passwordHash,
+    },
+  });
+
+  const agent2 = await prisma.user.upsert({
+    where: { email: "agent2@ticketflow.dev" },
+    update: { name: "Agent 2", role: Role.AGENT, passwordHash },
+    create: {
+      name: "Agent 2",
+      email: "agent2@ticketflow.dev",
+      role: Role.AGENT,
+      passwordHash,
+    },
+  });
+
   const employee = await prisma.user.upsert({
     where: { email: "employee@ticketflow.dev" },
     update: { name: "Employee Demo", role: Role.EMPLOYEE, passwordHash },
@@ -82,7 +104,7 @@ async function main() {
       status: Status.OPEN,
       priority: Priority.HIGH,
       createdById: employee1.id,
-      assignedToId: agent.id,
+      assignedToId: agent1.id,
     },
     {
       title: "[SEED] Missing translated labels in profile",
@@ -90,7 +112,7 @@ async function main() {
       status: Status.IN_PROGRESS,
       priority: Priority.MEDIUM,
       createdById: employee2.id,
-      assignedToId: agent.id,
+      assignedToId: agent2.id,
     },
     {
       title: "[SEED] Slow dashboard load for admins",
@@ -98,7 +120,7 @@ async function main() {
       status: Status.OPEN,
       priority: Priority.HIGH,
       createdById: admin.id,
-      assignedToId: agent.id,
+      assignedToId: agent1.id,
     },
     {
       title: "[SEED] Add dark mode preference",
@@ -114,7 +136,7 @@ async function main() {
       status: Status.IN_PROGRESS,
       priority: Priority.MEDIUM,
       createdById: admin.id,
-      assignedToId: agent.id,
+      assignedToId: agent2.id,
     },
     {
       title: "[SEED] Mobile layout overlap in ticket detail",
@@ -122,7 +144,7 @@ async function main() {
       status: Status.OPEN,
       priority: Priority.MEDIUM,
       createdById: employee1.id,
-      assignedToId: agent.id,
+      assignedToId: agent1.id,
     },
   ];
 
@@ -138,7 +160,7 @@ async function main() {
       {
         content: "I can reproduce this issue locally. Investigating root cause.",
         ticketId: createdTickets[0].id,
-        authorId: agent.id,
+        authorId: agent1.id,
       },
       {
         content: "Temporary workaround: use Chrome until fix is deployed.",
@@ -153,7 +175,7 @@ async function main() {
       {
         content: "Profiling query timings now; suspect N+1 in list view.",
         ticketId: createdTickets[2].id,
-        authorId: agent.id,
+        authorId: agent1.id,
       },
       {
         content: "CSV columns confirmed with operations team.",
@@ -172,6 +194,8 @@ async function main() {
   console.log("Demo users:");
   console.log("- admin@ticketflow.dev / 123456");
   console.log("- agent@ticketflow.dev / 123456");
+  console.log("- agent1@ticketflow.dev / 123456");
+  console.log("- agent2@ticketflow.dev / 123456");
   console.log("- employee@ticketflow.dev / 123456");
   console.log("- employee1@ticketflow.dev / 123456");
   console.log("- employee2@ticketflow.dev / 123456");

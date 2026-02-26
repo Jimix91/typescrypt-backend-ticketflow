@@ -64,7 +64,7 @@ const createCommentSchema = z.object({
   imageUrl: imageDataUrlSchema.nullable().optional(),
 });
 
-const isEmployeeOwner = (authUser: { id: number; role: "ADMIN" | "AGENT" | "EMPLOYEE" }, ticket: { createdById: number; assignedToId: number | null }) => {
+const canManageTicket = (authUser: { id: number; role: "ADMIN" | "AGENT" | "EMPLOYEE" }, ticket: { createdById: number; assignedToId: number | null }) => {
   if (authUser.role === "ADMIN") {
     return true;
   }
@@ -73,7 +73,7 @@ const isEmployeeOwner = (authUser: { id: number; role: "ADMIN" | "AGENT" | "EMPL
     return ticket.createdById === authUser.id;
   }
 
-  return ticket.createdById === authUser.id || ticket.assignedToId === authUser.id;
+  return ticket.assignedToId === authUser.id;
 };
 
 const validateAgentAssignee = async (assignedToId: number | null | undefined) => {
@@ -101,19 +101,6 @@ tasksRouter.get("/", async (req, res, next) => {
     }
 
     const tasks = await prisma.ticket.findMany({
-      where:
-        authUser.role === "ADMIN"
-          ? undefined
-          : authUser.role === "EMPLOYEE"
-            ? {
-                createdById: authUser.id,
-              }
-            : {
-              OR: [
-                { createdById: authUser.id },
-                { assignedToId: authUser.id },
-              ],
-            },
       select: ticketWithUsersSelect,
       orderBy: { createdAt: "desc" },
     });
@@ -143,12 +130,6 @@ tasksRouter.get("/:id", async (req, res, next) => {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    const canAccess = isEmployeeOwner(authUser, task);
-
-    if (!canAccess) {
-      return res.status(403).json({ message: "Forbidden" });
-    }
-
     return res.json(task);
   } catch (error) {
     return next(error);
@@ -164,8 +145,8 @@ tasksRouter.post("/", async (req, res, next) => {
 
     const payload = createTaskSchema.parse(req.body);
 
-    if (authUser.role === "EMPLOYEE" && payload.status === "CLOSED") {
-      return res.status(403).json({ message: "Employees cannot create closed tickets" });
+    if (authUser.role === "EMPLOYEE" && payload.status && payload.status !== "OPEN") {
+      return res.status(403).json({ message: "Employees cannot set ticket status" });
     }
 
     try {
@@ -214,7 +195,7 @@ tasksRouter.put("/:id", async (req, res, next) => {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    const canEdit = isEmployeeOwner(authUser, existingTask);
+    const canEdit = canManageTicket(authUser, existingTask);
 
     if (!canEdit) {
       return res.status(403).json({ message: "Forbidden" });
@@ -225,8 +206,8 @@ tasksRouter.put("/:id", async (req, res, next) => {
         return res.status(403).json({ message: "Employees cannot reassign tickets" });
       }
 
-      if (payload.status === "CLOSED") {
-        return res.status(403).json({ message: "Employees cannot close tickets" });
+      if (payload.status !== undefined && payload.status !== existingTask.status) {
+        return res.status(403).json({ message: "Employees cannot change ticket status" });
       }
     }
 
@@ -275,7 +256,7 @@ tasksRouter.delete("/:id", async (req, res, next) => {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    const canDelete = authUser.role === "ADMIN" || existingTask.createdById === authUser.id;
+    const canDelete = canManageTicket(authUser, existingTask);
     if (!canDelete) {
       return res.status(403).json({ message: "Forbidden" });
     }
@@ -306,7 +287,7 @@ tasksRouter.post("/:id/comments", async (req, res, next) => {
       return res.status(404).json({ message: "Ticket not found" });
     }
 
-    const canComment = isEmployeeOwner(authUser, ticket);
+    const canComment = canManageTicket(authUser, ticket);
 
     if (!canComment) {
       return res.status(403).json({ message: "Forbidden" });
@@ -345,12 +326,6 @@ tasksRouter.get("/:id/comments", async (req, res, next) => {
     const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
-    }
-
-    const canReadComments = isEmployeeOwner(authUser, ticket);
-
-    if (!canReadComments) {
-      return res.status(403).json({ message: "Forbidden" });
     }
 
     const comments = await prisma.comment.findMany({
