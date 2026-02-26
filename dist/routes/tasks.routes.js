@@ -22,6 +22,7 @@ const ticketWithUsersSelect = {
             name: true,
             email: true,
             role: true,
+            profileImageUrl: true,
         },
     },
     assignedTo: {
@@ -30,6 +31,7 @@ const ticketWithUsersSelect = {
             name: true,
             email: true,
             role: true,
+            profileImageUrl: true,
         },
     },
 };
@@ -59,6 +61,27 @@ const createCommentSchema = zod_1.z.object({
     content: zod_1.z.string().min(1),
     imageUrl: imageDataUrlSchema.nullable().optional(),
 });
+const canManageTicket = (authUser, ticket) => {
+    if (authUser.role === "ADMIN") {
+        return true;
+    }
+    if (authUser.role === "EMPLOYEE") {
+        return ticket.createdById === authUser.id;
+    }
+    return ticket.assignedToId === authUser.id;
+};
+const validateAgentAssignee = async (assignedToId) => {
+    if (!assignedToId) {
+        return;
+    }
+    const assignedUser = await prisma_1.prisma.user.findUnique({
+        where: { id: assignedToId },
+        select: { id: true, role: true },
+    });
+    if (!assignedUser || assignedUser.role !== "AGENT") {
+        throw new Error("Assigned user must be an AGENT");
+    }
+};
 tasksRouter.use(auth_middleware_1.requireAuth);
 tasksRouter.get("/", async (req, res, next) => {
     try {
@@ -67,14 +90,6 @@ tasksRouter.get("/", async (req, res, next) => {
             return res.status(401).json({ message: "Unauthorized" });
         }
         const tasks = await prisma_1.prisma.ticket.findMany({
-            where: authUser.role === "ADMIN"
-                ? undefined
-                : {
-                    OR: [
-                        { createdById: authUser.id },
-                        { assignedToId: authUser.id },
-                    ],
-                },
             select: ticketWithUsersSelect,
             orderBy: { createdAt: "desc" },
         });
@@ -101,12 +116,6 @@ tasksRouter.get("/:id", async (req, res, next) => {
         if (!task) {
             return res.status(404).json({ message: "Ticket not found" });
         }
-        const canAccess = authUser.role === "ADMIN" ||
-            task.createdById === authUser.id ||
-            task.assignedToId === authUser.id;
-        if (!canAccess) {
-            return res.status(403).json({ message: "Forbidden" });
-        }
         return res.json(task);
     }
     catch (error) {
@@ -120,6 +129,18 @@ tasksRouter.post("/", async (req, res, next) => {
             return res.status(401).json({ message: "Unauthorized" });
         }
         const payload = createTaskSchema.parse(req.body);
+        if (authUser.role === "EMPLOYEE" && payload.status && payload.status !== "OPEN") {
+            return res.status(403).json({ message: "Employees cannot set ticket status" });
+        }
+        try {
+            await validateAgentAssignee(payload.assignedToId);
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                return res.status(400).json({ message: error.message });
+            }
+            return res.status(400).json({ message: "Invalid assignee" });
+        }
         const task = await prisma_1.prisma.ticket.create({
             data: {
                 title: payload.title,
@@ -153,11 +174,26 @@ tasksRouter.put("/:id", async (req, res, next) => {
         if (!existingTask) {
             return res.status(404).json({ message: "Ticket not found" });
         }
-        const canEdit = authUser.role === "ADMIN" ||
-            existingTask.createdById === authUser.id ||
-            existingTask.assignedToId === authUser.id;
+        const canEdit = canManageTicket(authUser, existingTask);
         if (!canEdit) {
             return res.status(403).json({ message: "Forbidden" });
+        }
+        if (authUser.role === "EMPLOYEE") {
+            if (payload.assignedToId !== undefined && payload.assignedToId !== existingTask.assignedToId) {
+                return res.status(403).json({ message: "Employees cannot reassign tickets" });
+            }
+            if (payload.status !== undefined && payload.status !== existingTask.status) {
+                return res.status(403).json({ message: "Employees cannot change ticket status" });
+            }
+        }
+        try {
+            await validateAgentAssignee(payload.assignedToId);
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                return res.status(400).json({ message: error.message });
+            }
+            return res.status(400).json({ message: "Invalid assignee" });
         }
         const updatedTask = await prisma_1.prisma.ticket.update({
             where: { id: ticketId },
@@ -191,7 +227,7 @@ tasksRouter.delete("/:id", async (req, res, next) => {
         if (!existingTask) {
             return res.status(404).json({ message: "Ticket not found" });
         }
-        const canDelete = authUser.role === "ADMIN" || existingTask.createdById === authUser.id;
+        const canDelete = canManageTicket(authUser, existingTask);
         if (!canDelete) {
             return res.status(403).json({ message: "Forbidden" });
         }
@@ -217,9 +253,7 @@ tasksRouter.post("/:id/comments", async (req, res, next) => {
         if (!ticket) {
             return res.status(404).json({ message: "Ticket not found" });
         }
-        const canComment = authUser.role === "ADMIN" ||
-            ticket.createdById === authUser.id ||
-            ticket.assignedToId === authUser.id;
+        const canComment = canManageTicket(authUser, ticket);
         if (!canComment) {
             return res.status(403).json({ message: "Forbidden" });
         }
@@ -253,12 +287,6 @@ tasksRouter.get("/:id/comments", async (req, res, next) => {
         const ticket = await prisma_1.prisma.ticket.findUnique({ where: { id: ticketId } });
         if (!ticket) {
             return res.status(404).json({ message: "Ticket not found" });
-        }
-        const canReadComments = authUser.role === "ADMIN" ||
-            ticket.createdById === authUser.id ||
-            ticket.assignedToId === authUser.id;
-        if (!canReadComments) {
-            return res.status(403).json({ message: "Forbidden" });
         }
         const comments = await prisma_1.prisma.comment.findMany({
             where: { ticketId },

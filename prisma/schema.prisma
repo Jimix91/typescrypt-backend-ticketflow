@@ -30,6 +30,7 @@ model User {
   name      String
   email     String   @unique
   passwordHash String   @default("")
+  profileImageUrl String?
   role      Role     @default(EMPLOYEE)
   tickets   Ticket[] @relation("CreatedTickets")
   assigned  Ticket[] @relation("AssignedTickets")

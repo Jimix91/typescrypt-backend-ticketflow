@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import bcrypt from "bcryptjs";
 import { PrismaClient, Priority, Role, Status } from "@prisma/client";
 

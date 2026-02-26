@@ -20,6 +20,13 @@ const loginSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     password: zod_1.z.string().min(1),
 });
+const getProfileImageUrl = (user) => {
+    if (!user || typeof user !== "object") {
+        return null;
+    }
+    const maybeProfile = user.profileImageUrl;
+    return typeof maybeProfile === "string" ? maybeProfile : null;
+};
 const buildToken = (user) => {
     const secret = process.env.JWT_SECRET;
     if (!secret) {
@@ -55,6 +62,7 @@ authRouter.post("/register", async (req, res, next) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                profileImageUrl: getProfileImageUrl(user),
             },
         });
     }
@@ -81,6 +89,7 @@ authRouter.post("/login", async (req, res, next) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                profileImageUrl: getProfileImageUrl(user),
             },
         });
     }
@@ -103,6 +112,7 @@ authRouter.get("/me", auth_middleware_1.requireAuth, async (req, res, next) => {
             name: user.name,
             email: user.email,
             role: user.role,
+            profileImageUrl: getProfileImageUrl(user),
         });
     }
     catch (error) {

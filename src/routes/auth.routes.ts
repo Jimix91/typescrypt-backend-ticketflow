@@ -19,6 +19,15 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const getProfileImageUrl = (user: unknown): string | null => {
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+
+  const maybeProfile = (user as { profileImageUrl?: unknown }).profileImageUrl;
+  return typeof maybeProfile === "string" ? maybeProfile : null;
+};
+
 const buildToken = (user: { id: number; email: string; role: "ADMIN" | "AGENT" | "EMPLOYEE" }) => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
@@ -65,6 +74,7 @@ authRouter.post("/register", async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profileImageUrl: getProfileImageUrl(user),
       },
     });
   } catch (error) {
@@ -95,6 +105,7 @@ authRouter.post("/login", async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profileImageUrl: getProfileImageUrl(user),
       },
     });
   } catch (error) {
@@ -119,6 +130,7 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      profileImageUrl: getProfileImageUrl(user),
     });
   } catch (error) {
     return next(error);

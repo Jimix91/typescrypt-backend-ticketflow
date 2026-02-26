@@ -22,6 +22,7 @@ const ticketWithUsersSelect = {
       name: true,
       email: true,
       role: true,
+      profileImageUrl: true,
     },
   },
   assignedTo: {
@@ -30,6 +31,7 @@ const ticketWithUsersSelect = {
       name: true,
       email: true,
       role: true,
+      profileImageUrl: true,
     },
   },
 } as const;
