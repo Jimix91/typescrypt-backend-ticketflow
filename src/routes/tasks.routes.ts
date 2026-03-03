@@ -16,6 +16,7 @@ const ticketWithUsersSelect = {
   updatedAt: true,
   createdById: true,
   assignedToId: true,
+  inProgressSubStatus: true,
   createdBy: {
     select: {
       id: true,
@@ -48,6 +49,7 @@ const createTaskSchema = z.object({
   description: z.string().min(1),
   imageUrl: imageDataUrlSchema.nullable().optional(),
   status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
+  inProgressSubStatus: z.enum(["PENDING_AGENT", "PENDING_EMPLOYEE"]).nullable().optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
   assignedToId: z.coerce.number().int().positive().nullable().optional(),
 });
@@ -57,9 +59,29 @@ const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   imageUrl: imageDataUrlSchema.nullable().optional(),
   status: z.enum(["OPEN", "IN_PROGRESS", "CLOSED"]).optional(),
+  inProgressSubStatus: z.enum(["PENDING_AGENT", "PENDING_EMPLOYEE"]).nullable().optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional(),
   assignedToId: z.coerce.number().int().positive().nullable().optional(),
 });
+
+const resolveInProgressSubStatus = (
+  nextStatus: "OPEN" | "IN_PROGRESS" | "CLOSED",
+  payloadSubStatus: "PENDING_AGENT" | "PENDING_EMPLOYEE" | null | undefined,
+  currentSubStatus: "PENDING_AGENT" | "PENDING_EMPLOYEE" | null,
+) => {
+  if (nextStatus !== "IN_PROGRESS") {
+    if (payloadSubStatus !== undefined && payloadSubStatus !== null) {
+      throw new Error("inProgressSubStatus can only be set when status is IN_PROGRESS");
+    }
+    return null;
+  }
+
+  if (payloadSubStatus !== undefined) {
+    return payloadSubStatus ?? "PENDING_AGENT";
+  }
+
+  return currentSubStatus ?? "PENDING_AGENT";
+};
 
 const createCommentSchema = z.object({
   content: z.string().min(1),
@@ -160,12 +182,27 @@ tasksRouter.post("/", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid assignee" });
     }
 
+    let inProgressSubStatus: "PENDING_AGENT" | "PENDING_EMPLOYEE" | null;
+    try {
+      inProgressSubStatus = resolveInProgressSubStatus(
+        payload.status ?? "OPEN",
+        payload.inProgressSubStatus,
+        null,
+      );
+    } catch (error) {
+      if (error instanceof Error) {
+        return res.status(400).json({ message: error.message });
+      }
+      return res.status(400).json({ message: "Invalid in-progress substatus" });
+    }
+
     const task = await prisma.ticket.create({
       data: {
         title: payload.title,
         description: payload.description,
         imageUrl: payload.imageUrl,
         status: payload.status,
+        inProgressSubStatus,
         priority: payload.priority,
         createdById: authUser.id,
         assignedToId: payload.assignedToId,
@@ -211,6 +248,10 @@ tasksRouter.put("/:id", async (req, res, next) => {
       if (payload.status !== undefined && payload.status !== existingTask.status) {
         return res.status(403).json({ message: "Employees cannot change ticket status" });
       }
+
+      if (payload.inProgressSubStatus !== undefined && payload.inProgressSubStatus !== existingTask.inProgressSubStatus) {
+        return res.status(403).json({ message: "Employees cannot change in-progress substatus" });
+      }
     }
 
     try {
@@ -222,6 +263,20 @@ tasksRouter.put("/:id", async (req, res, next) => {
       return res.status(400).json({ message: "Invalid assignee" });
     }
 
+    let nextInProgressSubStatus: "PENDING_AGENT" | "PENDING_EMPLOYEE" | null;
+    try {
+      nextInProgressSubStatus = resolveInProgressSubStatus(
+        payload.status ?? existingTask.status,
+        payload.inProgressSubStatus,
+        existingTask.inProgressSubStatus,
+      );
+    } catch (error) {
+      if (error instanceof Error) {
+        return res.status(400).json({ message: error.message });
+      }
+      return res.status(400).json({ message: "Invalid in-progress substatus" });
+    }
+
     const updatedTask = await prisma.ticket.update({
       where: { id: ticketId },
       data: {
@@ -229,6 +284,7 @@ tasksRouter.put("/:id", async (req, res, next) => {
         description: payload.description,
         imageUrl: payload.imageUrl,
         status: payload.status,
+        inProgressSubStatus: nextInProgressSubStatus,
         priority: payload.priority,
         assignedToId: payload.assignedToId,
       },
@@ -306,6 +362,22 @@ tasksRouter.post("/:id/comments", async (req, res, next) => {
         author: true,
       },
     });
+
+    if (ticket.status === "IN_PROGRESS") {
+      const nextInProgressSubStatus =
+        authUser.role === "AGENT"
+          ? "PENDING_EMPLOYEE"
+          : authUser.role === "EMPLOYEE"
+            ? "PENDING_AGENT"
+            : ticket.inProgressSubStatus;
+
+      if (nextInProgressSubStatus !== ticket.inProgressSubStatus) {
+        await prisma.ticket.update({
+          where: { id: ticketId },
+          data: { inProgressSubStatus: nextInProgressSubStatus },
+        });
+      }
+    }
 
     return res.status(201).json(comment);
   } catch (error) {

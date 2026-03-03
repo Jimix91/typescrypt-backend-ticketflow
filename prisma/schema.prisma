@@ -19,6 +19,11 @@ enum Status {
   CLOSED
 }
 
+enum InProgressSubStatus {
+  PENDING_AGENT
+  PENDING_EMPLOYEE
+}
+
 enum Priority {
   LOW
   MEDIUM
@@ -44,6 +49,7 @@ model Ticket {
   description String
   imageUrl    String?
   status      Status   @default(OPEN)
+  inProgressSubStatus InProgressSubStatus?
   priority    Priority @default(MEDIUM)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

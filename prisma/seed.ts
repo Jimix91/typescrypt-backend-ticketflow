@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 import bcrypt from "bcryptjs";
-import { PrismaClient, Priority, Role, Status } from "@prisma/client";
+import { InProgressSubStatus, PrismaClient, Priority, Role, Status } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -112,6 +112,7 @@ async function main() {
       title: "[SEED] Missing translated labels in profile",
       description: "Spanish labels are missing on account settings page.",
       status: Status.IN_PROGRESS,
+      inProgressSubStatus: InProgressSubStatus.PENDING_AGENT,
       priority: Priority.MEDIUM,
       createdById: employee2.id,
       assignedToId: agent2.id,
@@ -136,6 +137,7 @@ async function main() {
       title: "[SEED] Export tickets to CSV",
       description: "Operations team needs CSV export for weekly reporting.",
       status: Status.IN_PROGRESS,
+      inProgressSubStatus: InProgressSubStatus.PENDING_EMPLOYEE,
       priority: Priority.MEDIUM,
       createdById: admin.id,
       assignedToId: agent2.id,
