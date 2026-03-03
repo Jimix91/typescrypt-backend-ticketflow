@@ -72,9 +72,21 @@ const resolveInProgressSubStatus = (nextStatus, payloadSubStatus, currentSubStat
     }
     return currentSubStatus ?? "PENDING_AGENT";
 };
+const statusLabelByValue = {
+    OPEN: "Open",
+    IN_PROGRESS: "In Progress",
+    CLOSED: "Closed",
+};
+const inProgressSubStatusLabelByValue = {
+    PENDING_AGENT: "Pending Agent",
+    PENDING_EMPLOYEE: "Pending Employee",
+};
 const createCommentSchema = zod_1.z.object({
     content: zod_1.z.string().min(1),
     imageUrl: imageDataUrlSchema.nullable().optional(),
+});
+const updateCommentSchema = zod_1.z.object({
+    content: zod_1.z.string().min(1),
 });
 const canManageTicket = (authUser, ticket) => {
     if (authUser.role === "ADMIN") {
@@ -247,6 +259,23 @@ tasksRouter.put("/:id", async (req, res, next) => {
             },
             select: ticketWithUsersSelect,
         });
+        const nextStatus = payload.status ?? existingTask.status;
+        const statusChanged = nextStatus !== existingTask.status;
+        const subStatusChanged = nextStatus === "IN_PROGRESS" &&
+            nextInProgressSubStatus !== existingTask.inProgressSubStatus;
+        if (statusChanged || subStatusChanged) {
+            const statusLabel = statusLabelByValue[nextStatus];
+            const subStatusLabel = nextStatus === "IN_PROGRESS" && nextInProgressSubStatus
+                ? ` - ${inProgressSubStatusLabelByValue[nextInProgressSubStatus]}`
+                : "";
+            await prisma_1.prisma.comment.create({
+                data: {
+                    content: `Changed status to ${statusLabel}${subStatusLabel}`,
+                    ticketId,
+                    authorId: authUser.id,
+                },
+            });
+        }
         return res.json(updatedTask);
     }
     catch (error) {
@@ -258,6 +287,9 @@ tasksRouter.delete("/:id", async (req, res, next) => {
         const authUser = req.authUser;
         if (!authUser) {
             return res.status(401).json({ message: "Unauthorized" });
+        }
+        if (authUser.role === "EMPLOYEE") {
+            return res.status(403).json({ message: "Employees cannot delete tickets" });
         }
         const ticketId = Number(req.params.id);
         if (!Number.isInteger(ticketId) || ticketId <= 0) {
@@ -347,6 +379,77 @@ tasksRouter.get("/:id/comments", async (req, res, next) => {
             orderBy: { createdAt: "asc" },
         });
         return res.json(comments);
+    }
+    catch (error) {
+        return next(error);
+    }
+});
+tasksRouter.put("/:id/comments/:commentId", async (req, res, next) => {
+    try {
+        const authUser = req.authUser;
+        if (!authUser) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        const ticketId = Number(req.params.id);
+        const commentId = Number(req.params.commentId);
+        if (!Number.isInteger(ticketId) || ticketId <= 0) {
+            return res.status(400).json({ message: "Invalid ticket id" });
+        }
+        if (!Number.isInteger(commentId) || commentId <= 0) {
+            return res.status(400).json({ message: "Invalid comment id" });
+        }
+        const payload = updateCommentSchema.parse(req.body);
+        const comment = await prisma_1.prisma.comment.findFirst({
+            where: { id: commentId, ticketId },
+        });
+        if (!comment) {
+            return res.status(404).json({ message: "Comment not found" });
+        }
+        const canEditComment = authUser.role === "ADMIN" || comment.authorId === authUser.id;
+        if (!canEditComment) {
+            return res.status(403).json({ message: "Forbidden" });
+        }
+        const updatedComment = await prisma_1.prisma.comment.update({
+            where: { id: commentId },
+            data: {
+                content: payload.content,
+            },
+            include: {
+                author: true,
+            },
+        });
+        return res.json(updatedComment);
+    }
+    catch (error) {
+        return next(error);
+    }
+});
+tasksRouter.delete("/:id/comments/:commentId", async (req, res, next) => {
+    try {
+        const authUser = req.authUser;
+        if (!authUser) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        const ticketId = Number(req.params.id);
+        const commentId = Number(req.params.commentId);
+        if (!Number.isInteger(ticketId) || ticketId <= 0) {
+            return res.status(400).json({ message: "Invalid ticket id" });
+        }
+        if (!Number.isInteger(commentId) || commentId <= 0) {
+            return res.status(400).json({ message: "Invalid comment id" });
+        }
+        const comment = await prisma_1.prisma.comment.findFirst({
+            where: { id: commentId, ticketId },
+        });
+        if (!comment) {
+            return res.status(404).json({ message: "Comment not found" });
+        }
+        const canDeleteComment = authUser.role === "ADMIN" || comment.authorId === authUser.id;
+        if (!canDeleteComment) {
+            return res.status(403).json({ message: "Forbidden" });
+        }
+        await prisma_1.prisma.comment.delete({ where: { id: commentId } });
+        return res.status(204).send();
     }
     catch (error) {
         return next(error);
