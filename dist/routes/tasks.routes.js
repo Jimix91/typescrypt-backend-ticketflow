@@ -90,6 +90,21 @@ const createCommentSchema = zod_1.z.object({
 const updateCommentSchema = zod_1.z.object({
     content: zod_1.z.string().min(1),
 });
+const listTicketsQuerySchema = zod_1.z.object({
+    scope: zod_1.z.enum(["active", "archived", "all"]).default("active"),
+});
+const CLOSED_TICKET_ARCHIVE_DAYS = 5;
+const getClosedArchiveThreshold = () => {
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - CLOSED_TICKET_ARCHIVE_DAYS);
+    return threshold;
+};
+const isArchivedClosedTicket = (ticket) => {
+    if (ticket.status !== "CLOSED") {
+        return false;
+    }
+    return ticket.createdAt <= getClosedArchiveThreshold();
+};
 const canManageTicket = (authUser, ticket) => {
     if (authUser.role === "ADMIN") {
         return true;
@@ -132,7 +147,30 @@ tasksRouter.get("/", async (req, res, next) => {
         if (!authUser) {
             return res.status(401).json({ message: "Unauthorized" });
         }
+        const { scope } = listTicketsQuerySchema.parse(req.query);
+        const archiveThreshold = getClosedArchiveThreshold();
+        let where;
+        if (scope === "active") {
+            where = {
+                OR: [
+                    { status: { not: "CLOSED" } },
+                    {
+                        AND: [
+                            { status: "CLOSED" },
+                            { createdAt: { gt: archiveThreshold } },
+                        ],
+                    },
+                ],
+            };
+        }
+        else if (scope === "archived") {
+            where = {
+                status: "CLOSED",
+                createdAt: { lte: archiveThreshold },
+            };
+        }
         const tasks = await prisma_1.prisma.ticket.findMany({
+            where,
             select: ticketWithUsersSelect,
             orderBy: { createdAt: "desc" },
         });
@@ -244,6 +282,14 @@ tasksRouter.put("/:id", async (req, res, next) => {
             if (payload.inProgressSubStatus !== undefined && payload.inProgressSubStatus !== existingTask.inProgressSubStatus) {
                 return res.status(403).json({ message: "Employees cannot change in-progress substatus" });
             }
+        }
+        const archivedClosedTicket = isArchivedClosedTicket(existingTask);
+        const requestedStatus = payload.status;
+        if (archivedClosedTicket &&
+            requestedStatus !== undefined &&
+            requestedStatus !== existingTask.status &&
+            authUser.role !== "ADMIN") {
+            return res.status(403).json({ message: "Only admins can change status on archived tickets" });
         }
         try {
             await validateAgentAssignee(payload.assignedToId);
