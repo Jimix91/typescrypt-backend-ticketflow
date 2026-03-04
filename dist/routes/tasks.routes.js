@@ -1,12 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const node_crypto_1 = require("node:crypto");
 const zod_1 = require("zod");
 const prisma_1 = require("../lib/prisma");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const tasksRouter = (0, express_1.Router)();
 const ticketWithUsersSelect = {
     id: true,
+    ticketCode: true,
     title: true,
     description: true,
     imageUrl: true,
@@ -109,6 +111,20 @@ const validateAgentAssignee = async (assignedToId) => {
         throw new Error("Assigned user must be an AGENT");
     }
 };
+const generateTicketCodeCandidate = () => String((0, node_crypto_1.randomInt)(100000, 1000000));
+const generateUniqueTicketCode = async () => {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+        const candidate = generateTicketCodeCandidate();
+        const existing = await prisma_1.prisma.ticket.findUnique({
+            where: { ticketCode: candidate },
+            select: { id: true },
+        });
+        if (!existing) {
+            return candidate;
+        }
+    }
+    throw new Error("Could not generate unique ticket code");
+};
 tasksRouter.use(auth_middleware_1.requireAuth);
 tasksRouter.get("/", async (req, res, next) => {
     try {
@@ -178,8 +194,10 @@ tasksRouter.post("/", async (req, res, next) => {
             }
             return res.status(400).json({ message: "Invalid in-progress substatus" });
         }
+        const ticketCode = await generateUniqueTicketCode();
         const task = await prisma_1.prisma.ticket.create({
             data: {
+                ticketCode,
                 title: payload.title,
                 description: payload.description,
                 imageUrl: payload.imageUrl,

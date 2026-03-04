@@ -45,6 +45,7 @@ model User {
 
 model Ticket {
   id          Int      @id @default(autoincrement())
+  ticketCode  String?  @unique
   title       String
   description String
   imageUrl    String?
