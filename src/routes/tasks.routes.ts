@@ -296,7 +296,7 @@ tasksRouter.put("/:id", async (req, res, next) => {
       where: { id: ticketId },
       data: {
         title: payload.title,
-        description: payload.description,
+        description: payload.description ?? undefined,
         imageUrl: payload.imageUrl,
         status: payload.status,
         inProgressSubStatus: nextInProgressSubStatus,
