@@ -103,7 +103,7 @@ const isArchivedClosedTicket = (ticket) => {
     if (ticket.status !== "CLOSED") {
         return false;
     }
-    return ticket.createdAt <= getClosedArchiveThreshold();
+    return ticket.updatedAt <= getClosedArchiveThreshold();
 };
 const canManageTicket = (authUser, ticket) => {
     if (authUser.role === "ADMIN") {
@@ -149,26 +149,34 @@ tasksRouter.get("/", async (req, res, next) => {
         }
         const { scope } = listTicketsQuerySchema.parse(req.query);
         const archiveThreshold = getClosedArchiveThreshold();
-        let where;
+        const visibilityWhere = authUser.role === "ADMIN"
+            ? {}
+            : authUser.role === "EMPLOYEE"
+                ? { createdById: authUser.id }
+                : { assignedToId: authUser.id };
+        let scopeWhere;
         if (scope === "active") {
-            where = {
+            scopeWhere = {
                 OR: [
                     { status: { not: "CLOSED" } },
                     {
                         AND: [
                             { status: "CLOSED" },
-                            { createdAt: { gt: archiveThreshold } },
+                            { updatedAt: { gt: archiveThreshold } },
                         ],
                     },
                 ],
             };
         }
         else if (scope === "archived") {
-            where = {
+            scopeWhere = {
                 status: "CLOSED",
-                createdAt: { lte: archiveThreshold },
+                updatedAt: { lte: archiveThreshold },
             };
         }
+        const where = scopeWhere
+            ? { AND: [visibilityWhere, scopeWhere] }
+            : visibilityWhere;
         const tasks = await prisma_1.prisma.ticket.findMany({
             where,
             select: ticketWithUsersSelect,
@@ -196,6 +204,10 @@ tasksRouter.get("/:id", async (req, res, next) => {
         });
         if (!task) {
             return res.status(404).json({ message: "Ticket not found" });
+        }
+        const canView = canManageTicket(authUser, task);
+        if (!canView) {
+            return res.status(403).json({ message: "Forbidden" });
         }
         return res.json(task);
     }
