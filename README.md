@@ -42,3 +42,22 @@ Internal Helpdesk backend built with Express + TypeScript + Prisma + PostgreSQL.
 - Deploy to Render/Railway/Fly.io.
 - Add managed PostgreSQL and set `DATABASE_URL`.
 - Set `FRONTEND_URL` to deployed frontend URL.
+
+## Vercel latency considerations
+
+Production cold starts can make the first auth/dashboard request slower than local.
+
+Backend mitigation already implemented:
+
+- Prisma client singleton pattern in `src/lib/prisma.ts` to reduce repeated client initialization overhead.
+
+Recommended Vercel checks:
+
+1. Functions region is close to your database region.
+2. Database connection string supports pooling (if provider offers it).
+3. Environment variables are correctly set for Production.
+4. Review first-request timing in Deployment logs.
+
+Useful endpoint for warm-up/health check:
+
+- `GET /api/health`
