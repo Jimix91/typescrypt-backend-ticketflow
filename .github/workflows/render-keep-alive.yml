@@ -18,7 +18,25 @@ jobs:
             exit 1
           fi
 
-          echo "Pinging $HEALTHCHECK_URL"
-          curl --silent --show-error --fail --max-time 30 \
-            -H "User-Agent: github-actions-keepalive" \
-            "$HEALTHCHECK_URL"
+          echo "Pinging $HEALTHCHECK_URL with retries"
+
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt/3"
+
+            if curl --silent --show-error --fail \
+              --connect-timeout 15 \
+              --max-time 75 \
+              -H "User-Agent: github-actions-keepalive" \
+              "$HEALTHCHECK_URL"; then
+              echo "Keep-alive ping succeeded"
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Ping failed, waiting 20s before retry"
+              sleep 20
+            fi
+          done
+
+          echo "All keep-alive attempts failed"
+          exit 1
