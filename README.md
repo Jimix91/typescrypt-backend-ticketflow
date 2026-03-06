@@ -61,3 +61,25 @@ Recommended Vercel checks:
 Useful endpoint for warm-up/health check:
 
 - `GET /api/health`
+
+## Keep backend awake on free tier
+
+If your Render service sleeps due to inactivity, the first request can take 20-60s.
+
+This repo includes a GitHub Actions workflow to ping the backend every 10 minutes:
+
+- File: `.github/workflows/render-keep-alive.yml`
+- Schedule: `*/10 * * * *`
+
+Setup steps:
+
+1. In your backend GitHub repo, go to `Settings > Secrets and variables > Actions`.
+2. Create secret `RENDER_HEALTHCHECK_URL` with value:
+   - `https://<your-render-domain>/api/health`
+3. Enable GitHub Actions for the repository.
+4. Optional: run it once from `Actions > Render Keep Alive > Run workflow`.
+
+Notes:
+
+- This is the most common workaround on free tiers, but uptime is not strictly guaranteed.
+- If you still see occasional cold starts, consider Render paid instance (no sleep).
