@@ -99,7 +99,16 @@ async function main() {
     },
   });
 
-  const ticketData = [
+  const ticketData: Array<{
+    title: string;
+    description: string;
+    status: Status;
+    inProgressSubStatus?: InProgressSubStatus;
+    priority: Priority;
+    createdById: number;
+    assignedToId: number | null;
+    closedDaysAgo?: number;
+  }> = [
     {
       title: "[SEED] Login form broken on Safari",
       description: "Users report login button does not submit on Safari 17.",
@@ -132,6 +141,34 @@ async function main() {
       priority: Priority.LOW,
       createdById: employee.id,
       assignedToId: null,
+      closedDaysAgo: 10,
+    },
+    {
+      title: "[SEED] Archived invoice upload timeout",
+      description: "Issue was resolved after increasing upload timeout and optimizing payload size.",
+      status: Status.CLOSED,
+      priority: Priority.HIGH,
+      createdById: employee2.id,
+      assignedToId: agent1.id,
+      closedDaysAgo: 10,
+    },
+    {
+      title: "[SEED] Archived password reset email delay",
+      description: "SMTP retry strategy was fixed and notifications are now delivered consistently.",
+      status: Status.CLOSED,
+      priority: Priority.MEDIUM,
+      createdById: employee1.id,
+      assignedToId: agent2.id,
+      closedDaysAgo: 2,
+    },
+    {
+      title: "[SEED] Archived stale session on profile page",
+      description: "Session refresh bug is fixed and users stay authenticated while editing profile.",
+      status: Status.CLOSED,
+      priority: Priority.LOW,
+      createdById: admin.id,
+      assignedToId: agent.id,
+      closedDaysAgo: 2,
     },
     {
       title: "[SEED] Export tickets to CSV",
@@ -155,8 +192,14 @@ async function main() {
   const createdTickets = [] as Array<{ id: number }>;
 
   for (const ticket of ticketData) {
-    const created = await prisma.ticket.create({ data: ticket, select: { id: true } });
-    createdTickets.push(created);
+    const { closedDaysAgo, ...ticketPayload } = ticket;
+    const created = await prisma.ticket.create({ data: ticketPayload, select: { id: true } });
+    if (typeof closedDaysAgo === "number") {
+      const closedTimestamp = new Date();
+      closedTimestamp.setDate(closedTimestamp.getDate() - closedDaysAgo);
+      await prisma.$executeRaw`UPDATE "Ticket" SET "updatedAt" = ${closedTimestamp} WHERE "id" = ${created.id}`;
+    }
+    createdTickets.push({ id: created.id });
   }
 
   await prisma.comment.createMany({
